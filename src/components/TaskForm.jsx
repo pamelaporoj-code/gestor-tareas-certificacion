@@ -2,24 +2,44 @@ import { useState, useEffect } from "react";
 import {
   Box,
   Button,
+  Flex,
   Text,
   VStack,
   HStack,
 } from "@chakra-ui/react";
 
+const getTodayString = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const EMPTY_FORM = {
   titulo: "",
   descripcion: "",
-  fecha: "2026-11-26",
+  fecha: getTodayString(),
   estado: "por-hacer",
+  recordatorio: "",
 };
 
 export default function TaskForm({ initialTask = null, onSubmit, onCancel }) {
-  const [formData, setFormData] = useState(initialTask || EMPTY_FORM);
+  const [formData, setFormData] = useState({
+    ...EMPTY_FORM,
+    ...(initialTask || {}),
+    recordatorio: initialTask?.recordatorio || "",
+  });
   const [errors, setErrors] = useState({});
+  const today = getTodayString();
 
   useEffect(() => {
-    setFormData(initialTask || EMPTY_FORM);
+    setFormData({
+      ...EMPTY_FORM,
+      fecha: getTodayString(),
+      ...(initialTask || {}),
+      recordatorio: initialTask?.recordatorio || "",
+    });
     setErrors({});
   }, [initialTask]);
 
@@ -33,12 +53,26 @@ export default function TaskForm({ initialTask = null, onSubmit, onCancel }) {
 
   const validate = () => {
     const nextErrors = {};
+    const currentToday = getTodayString();
+
     if (!formData.titulo.trim()) {
       nextErrors.titulo = "El título es obligatorio.";
     }
+
+    if (formData.descripcion.length > 150) {
+      nextErrors.descripcion = "La descripción no puede superar los 150 caracteres.";
+    }
+
+    if (formData.recordatorio.length > 100) {
+      nextErrors.recordatorio = "El recordatorio no puede superar los 100 caracteres.";
+    }
+
     if (!formData.fecha) {
       nextErrors.fecha = "La fecha es obligatoria.";
+    } else if (formData.fecha < currentToday) {
+      nextErrors.fecha = "No puedes guardar una tarea con una fecha pasada.";
     }
+
     return nextErrors;
   };
 
@@ -54,6 +88,7 @@ export default function TaskForm({ initialTask = null, onSubmit, onCancel }) {
       ...formData,
       titulo: formData.titulo.trim(),
       descripcion: formData.descripcion.trim(),
+      recordatorio: formData.recordatorio.trim(),
     });
   };
 
@@ -96,24 +131,38 @@ export default function TaskForm({ initialTask = null, onSubmit, onCancel }) {
         </Box>
 
         <Box>
-          <Text as="label" htmlFor="descripcion" display="block" fontWeight="medium" mb={1}>
-            Descripción
-          </Text>
+          <Flex justify="space-between" align="center" mb={1}>
+            <Text as="label" htmlFor="descripcion" fontWeight="medium">
+              Descripción
+            </Text>
+            <Text
+              fontSize="xs"
+              color={formData.descripcion.length >= 150 ? "red.500" : "gray.500"}
+            >
+              {formData.descripcion.length}/150
+            </Text>
+          </Flex>
           <Box
             as="textarea"
             id="descripcion"
             name="descripcion"
             rows={3}
+            maxLength={150}
             w="100%"
             px={3}
             py={2}
             borderRadius="md"
             borderWidth="1px"
-            borderColor="gray.300"
+            borderColor={errors.descripcion ? "red.500" : "gray.300"}
             placeholder="Detalles o pasos clave de la tarea..."
             value={formData.descripcion}
             onChange={handleChange}
           />
+          {errors.descripcion && (
+            <Text color="red.500" fontSize="xs" mt={1}>
+              {errors.descripcion}
+            </Text>
+          )}
         </Box>
 
         <HStack gap={4} direction={{ base: "column", sm: "row" }} align="flex-start">
@@ -126,6 +175,7 @@ export default function TaskForm({ initialTask = null, onSubmit, onCancel }) {
               id="fecha"
               name="fecha"
               type="date"
+              min={today}
               w="100%"
               px={3}
               py={2}
@@ -166,6 +216,31 @@ export default function TaskForm({ initialTask = null, onSubmit, onCancel }) {
             </Box>
           </Box>
         </HStack>
+
+        <Box>
+          <Text as="label" htmlFor="recordatorio" display="block" fontWeight="medium" mb={1}>
+            Recordatorio (opcional)
+          </Text>
+          <Box
+            as="input"
+            id="recordatorio"
+            name="recordatorio"
+            w="100%"
+            px={3}
+            py={2}
+            borderRadius="md"
+            borderWidth="1px"
+            borderColor={errors.recordatorio ? "red.500" : "gray.300"}
+            placeholder="Ej. Repasar puntos clave 20 minutos antes"
+            value={formData.recordatorio}
+            onChange={handleChange}
+          />
+          {errors.recordatorio && (
+            <Text color="red.500" fontSize="xs" mt={1}>
+              {errors.recordatorio}
+            </Text>
+          )}
+        </Box>
 
         <HStack justify="flex-end" pt={2} gap={3}>
           {onCancel && (

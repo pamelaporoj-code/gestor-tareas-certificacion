@@ -24,6 +24,27 @@ const STATUS_STYLES = {
   completada: { bg: "#f0fff4", color: "#2f855a", border: "#9ae6b4" },
 };
 
+function getDaysUntil(dateStr) {
+  if (!dateStr) return null;
+  const parts = dateStr.split("-").map(Number);
+  if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const targetDate = new Date(parts[0], parts[1] - 1, parts[2]);
+  const diffMs = targetDate - startOfToday;
+  return Math.round(diffMs / (1000 * 60 * 60 * 24));
+}
+
+function getSoonLabel(daysUntil, estado) {
+  if (estado === "completada" || daysUntil === null) return null;
+  if (daysUntil < 0) return "¡Ya venció!";
+  if (daysUntil === 0) return "¡Vence hoy!";
+  if (daysUntil === 1) return "¡Vence mañana!";
+  if (daysUntil <= 3) return `Vence en ${daysUntil} días`;
+  return null;
+}
+
 export default function TaskListPage() {
   const { tasks, updateTask, deleteTask } = useTasks();
   const [filterStatus, setFilterStatus] = useState("todas");
@@ -33,6 +54,21 @@ export default function TaskListPage() {
   const totalCount = tasks.length;
   const progressPercent =
     totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+  const dueSoonTasks = useMemo(() => {
+    return tasks
+      .map((task) => ({
+        ...task,
+        daysUntil: getDaysUntil(task.fecha),
+      }))
+      .filter(
+        (task) =>
+          task.estado !== "completada" &&
+          task.daysUntil !== null &&
+          task.daysUntil <= 3
+      )
+      .sort((a, b) => a.daysUntil - b.daysUntil);
+  }, [tasks]);
 
   const visibleTasks = useMemo(() => {
     const filtered =
@@ -201,12 +237,10 @@ export default function TaskListPage() {
               xmlns="http://www.w3.org/2000/svg"
               aria-label="Tulipán decorativo"
             >
-              {/* Destellos suaves */}
               <circle cx="11" cy="13" r="1.8" fill="#e6a8c7" />
               <circle cx="38" cy="15" r="1.6" fill="#c7a4e8" />
               <circle cx="36" cy="27" r="1.4" fill="#f2b880" />
 
-              {/* Tallo y hojitas */}
               <path
                 d="M24 26V40"
                 stroke="#78a68a"
@@ -222,7 +256,6 @@ export default function TaskListPage() {
                 fill="#7eb393"
               />
 
-              {/* Pétalos laterales del tulipán */}
               <path
                 d="M15 17C15 12.5 18.2 9.5 20.5 9.5C22.2 9.5 23.5 11.5 24 14V26.5H19.5C16.8 26.5 15 22.5 15 17Z"
                 fill="#f7b7d2"
@@ -232,13 +265,11 @@ export default function TaskListPage() {
                 fill="#e3b6f2"
               />
 
-              {/* Pétalo central */}
               <path
                 d="M19 15.5C20.5 10.5 22.5 8 24 8C25.5 8 27.5 10.5 29 15.5C30 19 28.5 26.5 24 26.5C19.5 26.5 18 19 19 15.5Z"
                 fill="#f99ec4"
               />
 
-              {/* Detalle suave al centro */}
               <path
                 d="M24 12.5V22.5"
                 stroke="#fff5f9"
@@ -250,6 +281,73 @@ export default function TaskListPage() {
           </Flex>
         </Flex>
       </Flex>
+
+      {/* Aviso directo de tareas que vencen pronto */}
+      {dueSoonTasks.length > 0 && (
+        <Box
+          bg="#fff7ed"
+          borderRadius="2xl"
+          p={4}
+          mb={6}
+          borderWidth="1px"
+          borderColor="#fbd38d"
+          boxShadow="xs"
+        >
+          <Text fontSize="sm" fontWeight="bold" color="#9c4221" mb={2}>
+            Tienes {dueSoonTasks.length}{" "}
+            {dueSoonTasks.length === 1
+              ? "tarea que vence pronto:"
+              : "tareas que vencen pronto:"}
+          </Text>
+          <VStack align="stretch" gap={2}>
+            {dueSoonTasks.map((task) => {
+              const soonText = getSoonLabel(task.daysUntil, task.estado);
+              return (
+                <Flex
+                  key={task.id}
+                  justify="space-between"
+                  align={{ base: "flex-start", sm: "center" }}
+                  direction={{ base: "column", sm: "row" }}
+                  gap={2}
+                  bg="#fffdf9"
+                  px={3.5}
+                  py={2.5}
+                  borderRadius="xl"
+                  borderWidth="1px"
+                  borderColor="#feebc8"
+                >
+                  <Box>
+                    <HStack gap={2} wrap="wrap">
+                      <Text fontSize="sm" fontWeight="bold" color="#3f2e52">
+                        {task.titulo}
+                      </Text>
+                      {soonText && (
+                        <Badge
+                          bg="#fed7aa"
+                          color="#9c4221"
+                          borderRadius="full"
+                          px={2.5}
+                          fontSize="11px"
+                        >
+                          {soonText}
+                        </Badge>
+                      )}
+                    </HStack>
+                    {task.recordatorio && (
+                      <Text fontSize="xs" color="#6b46c1" mt={0.5}>
+                        Recordatorio: {task.recordatorio}
+                      </Text>
+                    )}
+                  </Box>
+                  <Text fontSize="xs" color="#7c4a1d" fontWeight="medium" flexShrink={0}>
+                    Fecha: {task.fecha}
+                  </Text>
+                </Flex>
+              );
+            })}
+          </VStack>
+        </Box>
+      )}
 
       {/* Filtros y orden */}
       <Flex
@@ -326,6 +424,8 @@ export default function TaskListPage() {
         ) : (
           visibleTasks.map((task) => {
             const style = STATUS_STYLES[task.estado] || STATUS_STYLES["por-hacer"];
+            const soonText = getSoonLabel(getDaysUntil(task.fecha), task.estado);
+
             return (
               <Flex
                 key={task.id}
@@ -347,21 +447,41 @@ export default function TaskListPage() {
                     {task.titulo}
                   </Heading>
 
-                  <Badge
-                    mt={2}
-                    px={2.5}
-                    py={0.5}
-                    borderRadius="full"
-                    bg={style.bg}
-                    color={style.color}
-                    fontSize="xs"
-                  >
-                    {STATUS_LABELS[task.estado] || "Por hacer"}
-                  </Badge>
+                  <HStack mt={2} gap={2} wrap="wrap">
+                    <Badge
+                      px={2.5}
+                      py={0.5}
+                      borderRadius="full"
+                      bg={style.bg}
+                      color={style.color}
+                      fontSize="xs"
+                    >
+                      {STATUS_LABELS[task.estado] || "Por hacer"}
+                    </Badge>
+
+                    {soonText && (
+                      <Badge
+                        px={2.5}
+                        py={0.5}
+                        borderRadius="full"
+                        bg="#fed7aa"
+                        color="#9c4221"
+                        fontSize="xs"
+                      >
+                        {soonText}
+                      </Badge>
+                    )}
+                  </HStack>
 
                   {task.descripcion && (
                     <Text fontSize="sm" color="#6b5880" mt={2}>
                       {task.descripcion}
+                    </Text>
+                  )}
+
+                  {task.recordatorio && (
+                    <Text fontSize="xs" color="#6b46c1" fontWeight="medium" mt={2}>
+                      Recordatorio: {task.recordatorio}
                     </Text>
                   )}
 
